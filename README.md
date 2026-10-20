@@ -17,6 +17,8 @@ npm.cmd run dev
 
 Buka **http://localhost:3000**. Proyek Next.js dijalankan melalui Node.js, bukan Apache/PHP, meskipun folder berada di `htdocs`.
 
+Website memakai **Bahasa Indonesia secara default**. Gunakan tombol **ID / EN** di header untuk beralih ke bahasa Inggris atau kembali ke Indonesia. Pilihan disimpan di browser. Kampanye contoh memiliki terjemahan Inggris; tulisan kampanye yang dibuat pengguna tetap tampil sesuai bahasa aslinya.
+
 Tanpa konfigurasi `.env.local`, website berjalan dalam mode demo. Klik **Hubungkan wallet → Coba dengan dompet demo** untuk mendapatkan saldo simulasi 2,5 ETH. Eksplorasi, pencarian, filter, bookmark, pembuatan kampanye, donasi, dan pencairan dapat dicoba. Data demo tersimpan di localStorage browser, tidak mengirim transaksi blockchain. Untuk mencoba pencairan, buat kampanye dengan target 0,01 ETH, donasikan 0,01 ETH, lalu pilih **Cairkan** sebagai pembuat.
 
 ## Teknologi

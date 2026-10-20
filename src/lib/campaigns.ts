@@ -6,7 +6,7 @@ export type Donation = { address: string; amount: string; hash?: string; date: s
 export type Campaign = { id: string; title: string; description: string; category: Category; image: string; location: string; creator: string; organizer: string; target: string; raised: string; deadline: string; donations: Donation[]; withdrawn: boolean; demo: boolean; creationBlock?: number };
 export const DEMO_ADDRESS = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
 export const shortAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
-export const eth = (value: string | number) => Number(value).toLocaleString('id-ID', { maximumFractionDigits: 4 });
+export const eth = (value: string | number, language: 'id' | 'en' = 'id') => Number(value).toLocaleString(language === 'en' ? 'en-US' : 'id-ID', { maximumFractionDigits: 4 });
 export const daysLeft = (deadline: string) => Math.max(0, Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000));
 export const progress = (c: Campaign) => Math.min(100, Math.round(Number(c.raised) / Number(c.target) * 100));
 export function demoCampaigns(): Campaign[] {

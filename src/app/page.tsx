@@ -1,2 +1,3 @@
 import { RuangBaik } from '@/components/ruangbaik';
-export default function Home() { return <RuangBaik />; }
+import { LanguageProvider } from '@/components/language-provider';
+export default function Home() { return <LanguageProvider><RuangBaik /></LanguageProvider>; }
