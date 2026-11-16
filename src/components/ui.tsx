@@ -3,6 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowUpRight, X } from 'lucide-react';
 import { useLanguage } from './language-provider';
+import { normalizeImageUrl } from '@/lib/images';
 export function Logo() { return <span className="brand"><span className="brand-symbol"><i /><i /><b /></span>ruang<span>baik</span><small>®</small></span>; }
 export function Flower({ className = '' }: {
     className?: string;
@@ -61,7 +62,7 @@ export function Photo({ src, alt, className = '' }: {
     alt: string;
     className?: string;
 }) {
-    return <img src={src} alt={alt} className={className} loading="lazy" onError={e => {
+    return <img key={src} src={normalizeImageUrl(src) || '/images/forest.jpg'} alt={alt} className={className} loading="lazy" onError={e => {
             if (!e.currentTarget.src.endsWith('/images/forest.jpg'))
                 e.currentTarget.src = '/images/forest.jpg';
         }}/>;

@@ -1,18 +1,12 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { type Language, languageStorageKey, translate } from '@/lib/i18n';
+import { type Language, translate } from '@/lib/i18n';
 
 type LanguageContextValue = { language: Language; setLanguage: (value: Language) => void; t: (text: string) => string };
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, updateLanguage] = useState<Language>('id');
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(languageStorageKey);
-      if (saved === 'id' || saved === 'en') updateLanguage(saved);
-    } catch { /* Browsing without local storage still defaults to Indonesian. */ }
-  }, []);
   useEffect(() => {
     document.documentElement.lang = language;
     document.title = language === 'id'
@@ -21,7 +15,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language]);
   const setLanguage = useCallback((value: Language) => {
     updateLanguage(value);
-    try { localStorage.setItem(languageStorageKey, value); } catch { /* Selection still works for this visit. */ }
   }, []);
   const t = useCallback((text: string) => translate(language, text), [language]);
   const value = useMemo(() => ({ language, setLanguage, t }), [language, setLanguage, t]);

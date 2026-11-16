@@ -3,7 +3,8 @@ import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { Contract, JsonRpcProvider, isAddress } from 'ethers';
 import { ABI, CONTRACT_ADDRESS, SEPOLIA_ID } from './contract';
-export const configured = () => Boolean(isAddress(CONTRACT_ADDRESS) && process.env.DATABASE_URL && process.env.SEPOLIA_RPC_URL);
+export const databaseConfigured = () => Boolean(process.env.DATABASE_URL);
+export const configured = () => Boolean(isAddress(CONTRACT_ADDRESS) && databaseConfigured() && process.env.SEPOLIA_RPC_URL);
 let database: ReturnType<typeof drizzle> | undefined;
 export function db() {
   if (!process.env.DATABASE_URL) throw new Error('PostgreSQL belum dikonfigurasi.');

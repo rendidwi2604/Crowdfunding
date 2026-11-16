@@ -2,18 +2,13 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, Globe2, Heart, Leaf, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
-import { eth } from '@/lib/campaigns';
 import { Arrow, Flower, Photo, Reveal } from './ui';
 import { useLanguage } from './language-provider';
-export function LandingSections({ total, count, demo, onCreate, onGuide }: {
-    total: number;
-    count: number;
-    demo: boolean;
+export function LandingSections({ onCreate, onGuide }: {
     onCreate: () => void;
     onGuide: () => void;
 }) {
-    const { language, t } = useLanguage();
-    const formatEth = (value: string | number) => eth(value, language);
+    const { t } = useLanguage();
     const [story, setStory] = useState(0);
     const stories = [
         { category: 'UNTUK BUMI YANG LEBIH HIJAU', quote: 'Satu pohon mungkin terlihat kecil. Tapi bersama, kita bisa menumbuhkan sebuah hutan.', name: 'Bumi Kita', role: 'Cerita ilustrasi · Lingkungan', image: '/images/forest.jpg' },

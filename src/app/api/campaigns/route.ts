@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { formatEther, Interface, verifyMessage } from 'ethers';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
 import { blockchain, configured, db } from '@/lib/server';
 import { campaignMetadata, users } from '@/lib/schema';
 import { metadataSchema } from '@/lib/campaigns';
@@ -8,23 +9,38 @@ import { ABI, CONTRACT_ADDRESS } from '@/lib/contract';
 import { metadataMessage } from '@/lib/signature';
 export const dynamic = 'force-dynamic';
 export async function GET() {
-  if (!configured()) return NextResponse.json({ mode: 'demo', campaigns: [] });
+  if (!configured()) return NextResponse.json({ error: 'Integrasi Sepolia belum dikonfigurasi. Isi NEXT_PUBLIC_CONTRACT_ADDRESS, SEPOLIA_RPC_URL, dan DATABASE_URL.' }, { status: 503 });
   try {
-    const rows = await db().select().from(campaignMetadata);
+    const rows = await db().select({ campaign: campaignMetadata, registeredName: users.name }).from(campaignMetadata).leftJoin(users, eq(campaignMetadata.creatorAddress, users.walletAddress));
     const { contract } = await blockchain();
-    const campaigns = await Promise.all(rows.map(async row => {
+    const campaigns = await Promise.all(rows.map(async ({ campaign: row, registeredName }) => {
       const c = await contract.getCampaignDetails(row.id);
-      return { id: row.id, title: row.title, description: row.description, category: row.category, image: row.imageUrl, location: row.location, creator: c.creator, organizer: row.organizer, target: formatEther(c.target), raised: formatEther(c.raised), deadline: new Date(Number(c.deadline) * 1000).toISOString(), withdrawn: c.withdrawn, donations: [], demo: false, creationBlock: row.creationBlock };
+      return { id: row.id, title: row.title, description: row.description, category: row.category, image: row.imageUrl, location: row.location, creator: c.creator, organizer: row.organizer, registeredName, target: formatEther(c.target), raised: formatEther(c.raised), withdrawn: formatEther(c.withdrawn), deadline: new Date(Number(c.deadline) * 1000).toISOString(), donations: [], withdrawals: [], creationBlock: row.creationBlock };
     }));
-    return NextResponse.json({ mode: 'live', campaigns });
+    return NextResponse.json({ campaigns });
   } catch (error) { console.error('Campaign read failed:', error); return NextResponse.json({ error: 'Kampanye belum dapat dimuat dari Sepolia. Coba muat ulang.' }, { status: 503 }); }
 }
 const requestSchema = z.object({ transactionHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/), signature: z.string().max(500), metadata: metadataSchema });
 export async function POST(request: Request) {
   if (!configured()) return NextResponse.json({ error: 'Integrasi Sepolia belum dikonfigurasi.' }, { status: 503 });
   try {
-    const raw = await request.text();
-    if (raw.length > 20000) return NextResponse.json({ error: 'Data terlalu besar.' }, { status: 413 });
+    const maxBytes = 2 * 1024 * 1024;
+    const reader = request.body?.getReader();
+    const decoder = new TextDecoder();
+    let raw = '', size = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) {
+          await reader.cancel();
+          return NextResponse.json({ error: 'Data terlalu besar. Upload gambar maksimal 1 MB.' }, { status: 413 });
+        }
+        raw += decoder.decode(value, { stream: true });
+      }
+      raw += decoder.decode();
+    }
     const { transactionHash, signature, metadata } = requestSchema.parse(JSON.parse(raw));
     const { provider } = await blockchain();
     const receipt = await provider.getTransactionReceipt(transactionHash);
