@@ -18,18 +18,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const latest = await provider.getBlockNumber();
     const cursor = new URL(request.url).searchParams.get('cursor');
     if (cursor && !/^\d+$/.test(cursor)) return NextResponse.json({ error: 'Cursor tidak valid.' }, { status: 400 });
-    let to = Math.min(cursor ? Number(cursor) : latest, latest);
-    const withdrawals: Withdrawal[] = [];
-    const filter = contract.filters.FundsWithdrawn(id);
-    const batchSize = 4999;
-    while (to >= row.creationBlock) {
-      const from = Math.max(row.creationBlock, to - batchSize);
-      const events = await contract.queryFilter(filter, from, to);
-      withdrawals.push(...events.filter((e): e is EventLog => e instanceof EventLog).map(e => ({ address: String(e.args.creator), amount: formatEther(e.args.amount), totalWithdrawn: formatEther(e.args.totalWithdrawn), hash: e.transactionHash, date: new Date(Number(e.args.timestamp) * 1000).toISOString() })));
-      to = from - 1;
-    }
-    withdrawals.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
-    return NextResponse.json({ withdrawals, nextCursor: null });
+    const to = Math.min(cursor ? Number(cursor) : latest, latest);
+    if (to < row.creationBlock) return NextResponse.json({ withdrawals: [], nextCursor: null });
+    const from = Math.max(row.creationBlock, to - 4999);
+    const events = await contract.queryFilter(contract.filters.FundsWithdrawn(id), from, to);
+    const withdrawals: Withdrawal[] = events.filter((e): e is EventLog => e instanceof EventLog).reverse().map(e => ({ address: String(e.args.creator), amount: formatEther(e.args.amount), totalWithdrawn: formatEther(e.args.totalWithdrawn), hash: e.transactionHash, date: new Date(Number(e.args.timestamp) * 1000).toISOString() }));
+    return NextResponse.json({ withdrawals, nextCursor: from > row.creationBlock ? from - 1 : null });
   } catch (error) {
     console.error('Withdrawal history failed:', error);
     return NextResponse.json({ error: 'Riwayat pencairan belum dapat dimuat.' }, { status: 503 });

@@ -16,17 +16,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const latest = await provider.getBlockNumber();
     const cursor = new URL(request.url).searchParams.get('cursor');
     if (cursor && !/^\d+$/.test(cursor)) return NextResponse.json({ error: 'Cursor tidak valid.' }, { status: 400 });
-    let to = Math.min(cursor ? Number(cursor) : latest, latest);
-    const donations: Donation[] = [];
-    const filter = contract.filters.DonationReceived(id);
-    const batchSize = 4999;
-    while (to >= row.creationBlock) {
-      const from = Math.max(row.creationBlock, to - batchSize);
-      const events = await contract.queryFilter(filter, from, to);
-      donations.push(...events.filter((e): e is EventLog => e instanceof EventLog).map(e => ({ address: String(e.args.donor), amount: formatEther(e.args.amount), hash: e.transactionHash, date: new Date(Number(e.args.timestamp) * 1000).toISOString() })));
-      to = from - 1;
-    }
-    donations.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
-    return NextResponse.json({ donations, nextCursor: null });
+    const to = Math.min(cursor ? Number(cursor) : latest, latest);
+    if (to < row.creationBlock) return NextResponse.json({ donations: [], nextCursor: null });
+    const from = Math.max(row.creationBlock, to - 4999);
+    const events = await contract.queryFilter(contract.filters.DonationReceived(id), from, to);
+    const donations: Donation[] = events.filter((e): e is EventLog => e instanceof EventLog).reverse().map(e => ({ address: String(e.args.donor), amount: formatEther(e.args.amount), hash: e.transactionHash, date: new Date(Number(e.args.timestamp) * 1000).toISOString() }));
+    return NextResponse.json({ donations, nextCursor: from > row.creationBlock ? from - 1 : null });
   } catch (error) { console.error('Donation history failed:', error); return NextResponse.json({ error: 'Riwayat transaksi belum dapat dimuat.' }, { status: 503 }); }
 }

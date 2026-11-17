@@ -343,22 +343,30 @@ function CampaignDetail({ c, wallet, busy, error, donate, withdraw, onConnect }:
     const [withdrawAmount, setWithdrawAmount] = useState('0.01');
     const [donations, setDonations] = useState<Donation[]>([]);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+    const [donationCursor, setDonationCursor] = useState<string | null>(null);
+    const [withdrawalCursor, setWithdrawalCursor] = useState<string | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyError, setHistoryError] = useState('');
     const owner = wallet?.address.toLowerCase() === c.creator.toLowerCase();
     const available = Math.max(0, Number(c.raised) - Number(c.withdrawn));
     const eligible = Number(c.raised) >= Number(c.target) || daysLeft(c.deadline) === 0;
 
-    const loadHistory = useCallback(async (kind: 'donasi' | 'pencairan') => {
+    const loadHistory = useCallback(async (kind: 'donasi' | 'pencairan', cursor?: string | null) => {
         setHistoryLoading(true);
         setHistoryError('');
         try {
             const endpoint = kind === 'donasi' ? 'donations' : 'withdrawals';
-            const response = await fetch(`/api/campaigns/${c.id}/${endpoint}`);
+            const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+            const response = await fetch(`/api/campaigns/${c.id}/${endpoint}${query}`, { cache: 'no-store' });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
-            if (kind === 'donasi') setDonations(data.donations);
-            else setWithdrawals(data.withdrawals);
+            if (kind === 'donasi') {
+                setDonations(previous => cursor ? [...previous, ...data.donations] : data.donations);
+                setDonationCursor(data.nextCursor);
+            } else {
+                setWithdrawals(previous => cursor ? [...previous, ...data.withdrawals] : data.withdrawals);
+                setWithdrawalCursor(data.nextCursor);
+            }
         } catch (e) { setHistoryError(friendlyError(e)); }
         finally { setHistoryLoading(false); }
     }, [c]);
@@ -374,8 +382,8 @@ function CampaignDetail({ c, wallet, busy, error, donate, withdraw, onConnect }:
         <div className="detail-organizer"><span className="organizer-icon">{(c.registeredName || c.organizer).charAt(0)}</span><div><strong>{c.registeredName || c.organizer}</strong><a style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: 'var(--purple)' }} href={`https://sepolia.etherscan.io/address/${c.creator}`} target="_blank" rel="noreferrer">{shortAddress(c.creator)} <ExternalLink size={10}/></a></div>{c.registeredName && <ShieldCheck size={18}/>}</div>
         <div className="detail-tabs"><button className={tab === 'cerita' ? 'selected' : ''} onClick={() => setTab('cerita')}>{t('Cerita kampanye')}</button><button className={tab === 'donasi' ? 'selected' : ''} onClick={() => setTab('donasi')}>{t('Riwayat dukungan')}</button><button className={tab === 'pencairan' ? 'selected' : ''} onClick={() => setTab('pencairan')}>{t('Riwayat pencairan')}</button></div>
         {tab === 'cerita' && <div className="story-text">{c.description.split('\n').filter(Boolean).map((p, i) => <p key={i}>{p}</p>)}<div className="policy-note"><ShieldCheck size={18}/><span>{t('Donasi dan setiap pencairan dicatat di Sepolia serta dapat ditelusuri melalui Etherscan.')}</span></div></div>}
-        {tab === 'donasi' && <TransactionHistory rows={donations} kind="donation" loading={historyLoading} error={historyError} language={language} />}
-        {tab === 'pencairan' && <TransactionHistory rows={withdrawals} kind="withdrawal" loading={historyLoading} error={historyError} language={language} />}
+        {tab === 'donasi' && <TransactionHistory rows={donations} kind="donation" loading={historyLoading} error={historyError} language={language} onLoadMore={donationCursor ? () => loadHistory('donasi', donationCursor) : undefined} />}
+        {tab === 'pencairan' && <TransactionHistory rows={withdrawals} kind="withdrawal" loading={historyLoading} error={historyError} language={language} onLoadMore={withdrawalCursor ? () => loadHistory('pencairan', withdrawalCursor) : undefined} />}
       </div>
       <aside className="donate-panel"><span className="eyebrow">{t('KEBAIKAN YANG TERKUMPUL')}</span><div className="detail-raised">{formatEth(c.raised)} <span>ETH</span></div><p>{t('dari target')} <strong>{formatEth(c.target)} ETH</strong></p><div className="progress-track"><span style={{ width: `${progress(c)}%` }}/></div><div className="detail-stats"><span>{progress(c)}{t('% tercapai')}</span><span><Clock3 size={13}/>{daysLeft(c.deadline)} {t('hari lagi')}</span></div>
         {daysLeft(c.deadline) > 0 && <form onSubmit={async e => { e.preventDefault(); if (await donate(c, amount)) setTab('donasi'); }}><label className="donate-label">{t('Dukunganmu berarti')}<input aria-label={t('Jumlah donasi ETH')} value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" required/></label><div className="preset-amounts">{['0.01', '0.05', '0.1'].map(value => <button type="button" key={value} onClick={() => setAmount(value)} className={amount === value ? 'selected' : ''}>{value} ETH</button>)}</div>{wallet ? <button className="button primary full" disabled={!!busy} type="submit"><Heart size={17}/>{busy || t('Donasi sekarang')}</button> : <button type="button" className="button primary full" onClick={onConnect}><Wallet size={17}/> {t('Hubungkan wallet')}</button>}</form>}
@@ -386,9 +394,9 @@ function CampaignDetail({ c, wallet, busy, error, donate, withdraw, onConnect }:
     </div>;
 }
 
-function TransactionHistory({ rows, kind, loading, error, language }: { rows: (Donation | Withdrawal)[]; kind: 'donation' | 'withdrawal'; loading: boolean; error: string; language: 'id' | 'en' }) {
+function TransactionHistory({ rows, kind, loading, error, language, onLoadMore }: { rows: (Donation | Withdrawal)[]; kind: 'donation' | 'withdrawal'; loading: boolean; error: string; language: 'id' | 'en'; onLoadMore?: () => void }) {
     const { t } = useLanguage();
-    return <div className="donation-history">{rows.map((row, index) => <div className="donation-row" key={`${row.hash || row.date}-${index}`}><span className="donor-icon">{kind === 'donation' ? <Heart size={16}/> : <ArrowUpRight size={16}/>}</span><div><strong>{shortAddress(row.address)}</strong><small>{new Date(row.date).toLocaleString(languageTag(language), { dateStyle: 'medium', timeStyle: 'short' })}</small></div><div><strong>{eth(row.amount, language)} ETH</strong>{row.hash ? <a href={`https://sepolia.etherscan.io/tx/${row.hash}`} target="_blank" rel="noreferrer">{t('Lihat TxHash')} <ExternalLink size={11}/></a> : <small>{t('TxHash tidak tersedia')}</small>}</div></div>)}{!rows.length && !loading && <p className="empty-copy">{kind === 'donation' ? 'Belum ada donasi.' : 'Belum ada pencairan.'}</p>}{loading && <p className="busy-message"><LoaderCircle size={16} className="spin"/>Memuat transaksi…</p>}{error && <p className="error-message">{error}</p>}</div>;
+    return <div className="donation-history">{rows.map((row, index) => <div className="donation-row" key={`${row.hash || row.date}-${index}`}><span className="donor-icon">{kind === 'donation' ? <Heart size={16}/> : <ArrowUpRight size={16}/>}</span><div><strong>{shortAddress(row.address)}</strong><small>{new Date(row.date).toLocaleString(languageTag(language), { dateStyle: 'medium', timeStyle: 'short' })}</small></div><div><strong>{eth(row.amount, language)} ETH</strong>{row.hash ? <a href={`https://sepolia.etherscan.io/tx/${row.hash}`} target="_blank" rel="noreferrer">{t('Lihat TxHash')} <ExternalLink size={11}/></a> : <small>{t('TxHash tidak tersedia')}</small>}</div></div>)}{!rows.length && !loading && <p className="empty-copy">{kind === 'donation' ? 'Belum ada donasi.' : 'Belum ada pencairan.'}</p>}{loading && <p className="busy-message"><LoaderCircle size={16} className="spin"/>Memuat transaksi…</p>}{error && <p className="error-message">{error}</p>}{onLoadMore && <button type="button" className="button secondary" disabled={loading} onClick={onLoadMore}>Muat transaksi lebih lama</button>}</div>;
 }
 
 function Dashboard({ wallet, campaigns, bookmarks, onOpen, onConnect, onCreate }: {
